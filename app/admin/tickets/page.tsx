@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabaseClient"
 
 export default function AdminTicketsPage() {
-  const [tickets, setTickets] = useState([])
+  const [tickets, setTickets] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
 
@@ -24,23 +24,23 @@ export default function AdminTicketsPage() {
     if (error) {
       setError("Błąd podczas pobierania zgłoszeń")
     } else {
-      setTickets(data)
+      setTickets(data || [])
     }
 
     setLoading(false)
   }
 
-  const updateStatus = async (id, status) => {
+  const updateStatus = async (id: string, status: string) => {
     await supabase.from("tickets").update({ status }).eq("id", id)
     loadTickets()
   }
 
-  const updateComment = async (id, comment) => {
+  const updateComment = async (id: string, comment: string) => {
     await supabase.from("tickets").update({ admin_comment: comment }).eq("id", id)
     loadTickets()
   }
 
-  const deleteTicket = async (id) => {
+  const deleteTicket = async (id: string) => {
     await supabase.from("tickets").delete().eq("id", id)
     loadTickets()
   }
@@ -53,7 +53,13 @@ export default function AdminTicketsPage() {
 
       {error && <p style={{ color: "red" }}>{error}</p>}
 
-      <table width="100%" border="1" cellPadding="8" style={{ borderCollapse: "collapse" }}>
+      <table
+        style={{
+          width: "100%",
+          border: "1px solid black",
+          borderCollapse: "collapse",
+        }}
+      >
         <thead>
           <tr>
             <th>Tytuł</th>
