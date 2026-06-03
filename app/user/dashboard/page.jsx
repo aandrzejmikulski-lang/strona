@@ -1,97 +1,161 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from "react"
-import { supabase } from "@/lib/supabaseClient"
+import { useEffect, useState } from "react";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 
 export default function UserDashboard() {
-  const [profile, setProfile] = useState(null)
-  const [tickets, setTickets] = useState([])
-  const [announcements, setAnnouncements] = useState([])
-  const [loading, setLoading] = useState(true)
+  const supabase = getSupabaseBrowserClient();
+
+  const [profile, setProfile] = useState(null);
+  const [stats, setStats] = useState({ total: 0, pending: 0, closed: 0 });
+  const [recentTickets, setRecentTickets] = useState([]);
+  const [recentComments, setRecentComments] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadData()
-  }, [])
+    loadDashboard();
+  }, []);
 
-  const loadData = async () => {
-    // Pobieramy usera
+  async function loadDashboard() {
     const {
-      data: { user }
-    } = await supabase.auth.getUser()
+      data: { user },
+    } = await supabase.auth.getUser();
 
-    if (!user) return
+    if (!user) return;
 
-    // Pobieramy profil
+    // PROFIL
     const { data: profileData } = await supabase
       .from("profiles")
       .select("*")
       .eq("id", user.id)
-      .single()
+      .single();
 
-    setProfile(profileData)
+    setProfile(profileData);
 
-    // Pobieramy zgłoszenia użytkownika
-    const { data: ticketsData } = await supabase
+    // STATYSTYKI
+    const { data: tickets } = await supabase
       .from("tickets")
-      .select("*")
+      .select("id, status")
+      .eq("user_id", user.id);
+
+    const total = tickets?.length || 0;
+    const pending = tickets?.filter(
+      (t) => t.status === "new" || t.status === "in_progress"
+    ).length || 0;
+    const closed = tickets?.filter((t) => t.status === "done").length || 0;
+
+    setStats({ total, pending, closed });
+
+    // OSTATNIE ZGŁOSZENIA
+    const { data: recent } = await supabase
+      .from("tickets")
+      .select("id, title, status, created_at")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
+      .limit(5);
 
-    setTickets(ticketsData || [])
+    setRecentTickets(recent || []);
 
-    // Pobieramy ogłoszenia
-    const { data: announcementsData } = await supabase
-      .from("announcements")
-      .select("*")
-      .eq("is_archived", false)
+    // OSTATNIE KOMENTARZE
+    const { data: comments } = await supabase
+      .from("ticket_comments")
+      .select(`
+        id,
+        content,
+        created_at,
+        ticket_id,
+        tickets(title)
+      `)
+      .eq("user_id", user.id)
       .order("created_at", { ascending: false })
+      .limit(5);
 
-    setAnnouncements(announcementsData || [])
+    setRecentComments(comments || []);
 
-    setLoading(false)
+    setLoading(false);
   }
 
-  if (loading) return <p>Ładowanie...</p>
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black text-white p-10">
+        Ładowanie dashboardu…
+      </div>
+    );
+  }
 
   return (
-    <div style={{ maxWidth: 900, margin: "40px auto" }}>
-      <h2>Panel użytkownika</h2>
+    <div className="min-h-screen bg-black text-white p-6 md:p-10 space-y-10">
+      <h1 className="text-3xl font-bold tracking-tight">
+        Witaj, {profile?.full_name || "użytkowniku"}
+      </h1>
 
-      <section style={{ marginBottom: 40 }}>
-        <h3>Twój profil</h3>
-        <p><strong>Imię i nazwisko:</strong> {profile.full_name}</p>
-        <p><strong>Email:</strong> {profile.email}</p>
-        <p><strong>Telefon:</strong> {profile.phone || "-"}</p>
-        <p><strong>Wspólnota:</strong> {profile.wspolnota_id || "-"}</p>
+      {/* STATYSTYKI */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <StatCard title="Twoje zgłoszenia" value={stats.total} color="text-blue-400" />
+        <StatCard title="Oczekujące" value={stats.pending} color="text-yellow-400" />
+        <StatCard title="Zamknięte" value={stats.closed} color="text-green-400" />
+      </div>
+
+      {/* OSTATNIE ZGŁOSZENIA */}
+      <section className="bg-gray-950 border border-gray-800 rounded-xl p-6 space-y-4">
+        <h2 className="text-xl font-semibold">Ostatnie zgłoszenia</h2>
+
+        {recentTickets.length === 0 && (
+          <p className="text-gray-500 text-sm">Brak zgłoszeń.</p>
+        )}
+
+        <div className="space-y-3">
+          {recentTickets.map((t) => (
+            <div
+              key={t.id}
+              className="border border-gray-800 bg-gray-900 rounded-lg p-4 flex justify-between"
+            >
+              <div>
+                <p className="font-semibold">{t.title}</p>
+                <p className="text-xs text-gray-500">
+                  {new Date(t.created_at).toLocaleString("pl-PL")}
+                </p>
+              </div>
+              <span className="text-sm text-gray-300">{t.status}</span>
+            </div>
+          ))}
+        </div>
       </section>
 
-      <section style={{ marginBottom: 40 }}>
-        <h3>Ogłoszenia</h3>
-        {announcements.length === 0 && <p>Brak ogłoszeń</p>}
+      {/* OSTATNIE KOMENTARZE */}
+      <section className="bg-gray-950 border border-gray-800 rounded-xl p-6 space-y-4">
+        <h2 className="text-xl font-semibold">Twoje ostatnie komentarze</h2>
 
-        <ul>
-          {announcements.map((a) => (
-            <li key={a.id} style={{ marginBottom: 10 }}>
-              <strong>{a.title}</strong>
-              <p>{a.content}</p>
-            </li>
+        {recentComments.length === 0 && (
+          <p className="text-gray-500 text-sm">Brak komentarzy.</p>
+        )}
+
+        <div className="space-y-3">
+          {recentComments.map((c) => (
+            <div
+              key={c.id}
+              className="border border-gray-800 bg-gray-900 rounded-lg p-4"
+            >
+              <p className="text-gray-200 text-sm">{c.content}</p>
+              <p className="text-xs text-gray-500 mt-1">
+                W zgłoszeniu: {c.tickets?.title}
+              </p>
+              <p className="text-xs text-gray-500">
+                {new Date(c.created_at).toLocaleString("pl-PL")}
+              </p>
+            </div>
           ))}
-        </ul>
-      </section>
-
-      <section>
-        <h3>Twoje zgłoszenia</h3>
-        {tickets.length === 0 && <p>Nie masz jeszcze zgłoszeń</p>}
-
-        <ul>
-          {tickets.map((t) => (
-            <li key={t.id} style={{ marginBottom: 10 }}>
-              <strong>{t.title}</strong> — {t.status}
-              <p>{t.description}</p>
-            </li>
-          ))}
-        </ul>
+        </div>
       </section>
     </div>
-  )
+  );
+}
+
+function StatCard({ title, value, color }) {
+  return (
+    <div className="bg-gray-950 border border-gray-800 rounded-xl p-6">
+      <p className="text-gray-400 text-sm">{title}</p>
+      <p className={`text-3xl font-bold mt-2 ${color}`}>{value}</p>
+    </div>
+  );
 }

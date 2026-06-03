@@ -1,107 +1,88 @@
-"use client"
-import { useState } from "react"
-import { supabase } from "@/lib/supabaseClient"
-import { useRouter } from "next/navigation"
+"use client";
+
+import { useState } from "react";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
 export default function RegisterPage() {
-  const router = useRouter()
+  const supabase = createClientComponentClient();
 
-  const [fullName, setFullName] = useState("")
-  const [email, setEmail] = useState("")
-  const [phone, setPhone] = useState("")
-  const [password, setPassword] = useState("")
-  const [confirmPassword, setConfirmPassword] = useState("")
-  const [error, setError] = useState("")
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [fullName, setFullName] = useState("");
 
-  const handleRegister = async (e) => {
-    e.preventDefault()
+  async function register(e: any) {
+    e.preventDefault();
 
-    if (password !== confirmPassword) {
-      setError("Hasła nie są takie same")
-      return
-    }
-
-    // 1. Tworzymy konto w Supabase Auth
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
-      password
-    })
+      password,
+    });
 
     if (authError) {
-      setError(authError.message)
-      return
+      alert("Błąd rejestracji: " + authError.message);
+      return;
     }
 
-    const userId = authData.user.id
+    const user = authData.user;
 
-    // 2. Tworzymy profil w tabeli profiles
+    if (!user) {
+      alert("Błąd: brak użytkownika po rejestracji");
+      return;
+    }
+
     const { error: profileError } = await supabase.from("profiles").insert({
-      id: userId,
-      full_name: fullName,
+      id: user.id,
       email,
-      phone,
+      full_name: fullName,
       role: "user",
       is_active: false,
-      wspolnota_id: null
-    })
+      community_id: null,
+    });
 
     if (profileError) {
-      setError(profileError.message)
-      return
+      alert("Błąd tworzenia profilu: " + profileError.message);
+      return;
     }
 
-    // 3. Przekierowanie na stronę "oczekujesz na akceptację"
-    router.push("/pending-approval")
+    alert("Rejestracja udana!");
   }
 
   return (
-    <div style={{ maxWidth: 400, margin: "80px auto" }}>
-      <h2>Rejestracja</h2>
+    <div className="p-6 max-w-md mx-auto">
+      <h1 className="text-2xl font-bold mb-4">Rejestracja</h1>
 
-      <form onSubmit={handleRegister}>
+      <form onSubmit={register} className="space-y-4">
         <input
           type="text"
           placeholder="Imię i nazwisko"
+          className="w-full p-2 bg-gray-800 border border-gray-700"
           value={fullName}
           onChange={(e) => setFullName(e.target.value)}
-          required
         />
 
         <input
           type="email"
           placeholder="Email"
+          className="w-full p-2 bg-gray-800 border border-gray-700"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          required
-        />
-
-        <input
-          type="text"
-          placeholder="Telefon"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
         />
 
         <input
           type="password"
           placeholder="Hasło"
+          className="w-full p-2 bg-gray-800 border border-gray-700"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          required
         />
 
-        <input
-          type="password"
-          placeholder="Powtórz hasło"
-          value={confirmPassword}
-          onChange={(e) => setConfirmPassword(e.target.value)}
-          required
-        />
-
-        {error && <p style={{ color: "red" }}>{error}</p>}
-
-        <button type="submit">Zarejestruj</button>
+        <button
+          type="submit"
+          className="w-full p-2 bg-blue-600 hover:bg-blue-700 rounded"
+        >
+          Zarejestruj
+        </button>
       </form>
     </div>
-  )
+  );
 }

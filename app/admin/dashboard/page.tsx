@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getSupabaseBrowserClient } from "../../lib/supabaseBrowser";
-import DashboardCharts from "../../components/ui/DashboardCharts";
+import { getSupabaseBrowserClient } from "../../../lib/supabaseBrowser";
+import DashboardCharts from "../../../components/ui/DashboardCharts";
 
 export default function AdminDashboard() {
   const supabase = getSupabaseBrowserClient();
@@ -42,12 +42,26 @@ export default function AdminDashboard() {
 
       const role = String(profile.role).trim().toLowerCase();
 
-      if (role !== "admin") {
-        router.push("/dashboard");
+      // 🔥 ADMIN → pełny dostęp, bez wspólnoty, bez ograniczeń
+      if (role === "admin") {
+        setLoading(false);
         return;
       }
 
-      setLoading(false);
+      // 🔥 USER NIEAKTYWNY
+      if (!profile.is_active) {
+        router.push("/pending-approval");
+        return;
+      }
+
+      // 🔥 USER AKTYWNY, ALE BEZ WSPÓLNOTY
+      if (!profile.community_id) {
+        router.push("/select-community");
+        return;
+      }
+
+      // 🔥 USER → dashboard usera
+      router.push("/dashboard");
     }
 
     checkAccess();
@@ -92,12 +106,12 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-black text-white p-6 md:p-10">
+
+      {/* GÓRNY PASEK */}
       <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-3xl font-bold">Panel administracyjny</h1>
-          <p className="text-gray-400">
-            Dane odświeżane co 10 sekund • Live view
-          </p>
+          <p className="text-gray-400">Dane odświeżane co 10 sekund • Live view</p>
         </div>
 
         <button
@@ -108,33 +122,15 @@ export default function AdminDashboard() {
         </button>
       </div>
 
+      {/* KAFELKI */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <DashboardCard
-          title="Wspólnoty"
-          value={stats.communities}
-          color="text-blue-400"
-          icon="🏢"
-        />
-        <DashboardCard
-          title="Mieszkańcy"
-          value={stats.residents}
-          color="text-green-400"
-          icon="👤"
-        />
-        <DashboardCard
-          title="Otwarte zgłoszenia"
-          value={stats.tickets}
-          color="text-yellow-400"
-          icon="⚠️"
-        />
-        <DashboardCard
-          title="Aktywne ogłoszenia"
-          value={stats.announcements}
-          color="text-purple-400"
-          icon="📢"
-        />
+        <DashboardCard title="Wspólnoty" value={stats.communities} color="text-blue-400" icon="🏢" />
+        <DashboardCard title="Mieszkańcy" value={stats.residents} color="text-green-400" icon="👤" />
+        <DashboardCard title="Otwarte zgłoszenia" value={stats.tickets} color="text-yellow-400" icon="⚠️" />
+        <DashboardCard title="Aktywne ogłoszenia" value={stats.announcements} color="text-purple-400" icon="📢" />
       </div>
 
+      {/* WYKRESY */}
       <div className="mt-10">
         <DashboardCharts />
       </div>
@@ -142,7 +138,17 @@ export default function AdminDashboard() {
   );
 }
 
-function DashboardCard({ title, value, color, icon }) {
+function DashboardCard({
+  title,
+  value,
+  color,
+  icon,
+}: {
+  title: string;
+  value: number;
+  color: string;
+  icon: string;
+}) {
   return (
     <div className="bg-gray-950 border border-gray-800 rounded-xl p-6 flex flex-col items-start justify-center">
       <div className={`text-3xl mb-2 ${color}`}>{icon}</div>
