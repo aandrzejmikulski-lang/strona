@@ -22,6 +22,7 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState({
     users: 0,
     communities: 0,
+    residents: 0,
     tickets: 0,
     announcements: 0,
   });
@@ -32,16 +33,22 @@ export default function AdminDashboard() {
     async function loadStats() {
       const users = await supabase.from("profiles").select("*");
       const communities = await supabase.from("communities").select("*");
+      const residents = await supabase.from("residents").select("*");
       const tickets = await supabase.from("tickets").select("*");
       const announcements = await supabase.from("announcements").select("*");
 
       setStats({
         users: users.data?.length || 0,
         communities: communities.data?.length || 0,
+        residents: residents.data?.length || 0,
         tickets:
-          tickets.data?.filter((t: Ticket) => t.status === "open").length || 0,
+          tickets.data?.filter(
+            (t: Ticket) => t.status === "open"
+          ).length || 0,
         announcements:
-          announcements.data?.filter((a: Announcement) => a.active).length || 0,
+          announcements.data?.filter(
+            (a: Announcement) => a.active
+          ).length || 0,
       });
 
       setLoading(false);
@@ -62,7 +69,7 @@ export default function AdminDashboard() {
     <div className="p-6">
       <h1 className="text-3xl font-bold mb-6">Panel Administratora</h1>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
         <div className="p-6 bg-gray-800 rounded-lg border border-gray-700">
           <h2 className="text-xl font-semibold">Użytkownicy</h2>
           <p className="text-4xl font-bold mt-2">{stats.users}</p>
@@ -71,6 +78,11 @@ export default function AdminDashboard() {
         <div className="p-6 bg-gray-800 rounded-lg border border-gray-700">
           <h2 className="text-xl font-semibold">Społeczności</h2>
           <p className="text-4xl font-bold mt-2">{stats.communities}</p>
+        </div>
+
+        <div className="p-6 bg-gray-800 rounded-lg border border-gray-700">
+          <h2 className="text-xl font-semibold">Mieszkańcy</h2>
+          <p className="text-4xl font-bold mt-2">{stats.residents}</p>
         </div>
 
         <div className="p-6 bg-gray-800 rounded-lg border border-gray-700">
