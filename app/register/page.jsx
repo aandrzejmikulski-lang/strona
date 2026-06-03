@@ -1,16 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+);
 
 export default function RegisterPage() {
-  const supabase = createClientComponentClient();
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
 
-  async function register(e: any) {
+  async function register(e) {
     e.preventDefault();
 
     const { data: authData, error: authError } = await supabase.auth.signUp({
