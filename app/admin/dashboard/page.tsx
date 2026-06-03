@@ -86,7 +86,7 @@ export default function AdminDashboard() {
     setStats({
       communities: communities.data?.length || 0,
       residents: residents.data?.length || 0,
-      tickets: tickets.data?.filter((t) => t.status === "open").length || 0,
+      tickets: tickets.data?.filter((t: { status: string }) => t.status === "open").length || 0,
       announcements: announcements.data?.filter((a) => a.active).length || 0,
     });
   }
