@@ -5,7 +5,11 @@ import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
 import Link from "next/link";
 
-export default function TicketDetailsPage({ params }) {
+export default function TicketDetailsPage({
+  params,
+}: {
+  params: { id: string };
+}) {
   const router = useRouter();
   const ticketId = params.id;
 
@@ -17,8 +21,8 @@ export default function TicketDetailsPage({ params }) {
     }
   );
 
-  const [ticket, setTicket] = useState(null);
-  const [files, setFiles] = useState([]);
+  const [ticket, setTicket] = useState<any>(null);
+  const [files, setFiles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -26,10 +30,8 @@ export default function TicketDetailsPage({ params }) {
   }, []);
 
   const load = async () => {
-    // 🔥 KLUCZOWE — wymusza załadowanie JWT, inaczej RLS blokuje SELECT
     await supabase.auth.getSession();
 
-    // 🔥 Pobranie zgłoszenia
     const { data: ticketData, error: ticketError } = await supabase
       .from("tickets")
       .select("*")
@@ -45,7 +47,6 @@ export default function TicketDetailsPage({ params }) {
 
     setTicket(ticketData);
 
-    // 🔥 Pobranie listy plików
     const { data: fileList } = await supabase.storage
       .from("ticket_attachments")
       .list(ticketId);
