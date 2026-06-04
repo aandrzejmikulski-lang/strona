@@ -26,15 +26,17 @@ export async function middleware(req) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // 🔒 Brak sesji → login
+  const path = req.nextUrl.pathname;
+
+  // 🔒 1. Brak sesji → login
   if (!user) {
-    if (!req.nextUrl.pathname.startsWith("/login")) {
+    if (!path.startsWith("/login")) {
       return NextResponse.redirect(new URL("/login", req.url));
     }
     return res;
   }
 
-  // 🔍 Pobierz profil
+  // 🔍 2. Pobierz profil
   const { data: profile } = await supabase
     .from("profiles")
     .select("*")
@@ -47,31 +49,48 @@ export async function middleware(req) {
 
   const role = String(profile.role).trim().toLowerCase();
 
-  // 🔥 ADMIN → pełny dostęp, żadnych redirectów
+  // ============================================================
+  // 🔥 3. ADMIN
+  // ============================================================
+
   if (role === "admin") {
+    // Admin NIE może wejść na user dashboard
+    if (path.startsWith("/user") || path.startsWith("/dashboard")) {
+      return NextResponse.redirect(new URL("/admin", req.url));
+    }
+
+    // Admin ma pełny dostęp
     return res;
   }
 
-  // 🔥 USER → poprawka przekierowania
-  // Jeśli user wejdzie na /dashboard → przekieruj na /user/dashboard
-  if (req.nextUrl.pathname.startsWith("/dashboard")) {
-    return NextResponse.redirect(new URL("/user/dashboard", req.url));
+  // ============================================================
+  // 🔥 4. USER
+  // ============================================================
+
+  // User NIE może wejść na /admin/*
+  if (path.startsWith("/admin")) {
+    return NextResponse.redirect(new URL("/403", req.url));
   }
 
-  // 🔥 USER NIEAKTYWNY
+  // User NIEAKTYWNY
   if (!profile.is_active) {
-    if (!req.nextUrl.pathname.startsWith("/pending-approval")) {
+    if (!path.startsWith("/pending-approval")) {
       return NextResponse.redirect(new URL("/pending-approval", req.url));
     }
     return res;
   }
 
-  // 🔥 USER AKTYWNY, ALE BEZ WSPÓLNOTY
+  // User AKTYWNY, ALE BEZ WSPÓLNOTY
   if (!profile.community_id) {
-    if (!req.nextUrl.pathname.startsWith("/select-community")) {
+    if (!path.startsWith("/select-community")) {
       return NextResponse.redirect(new URL("/select-community", req.url));
     }
     return res;
+  }
+
+  // User wchodzi na /dashboard → przekieruj na /user/dashboard
+  if (path.startsWith("/dashboard")) {
+    return NextResponse.redirect(new URL("/user/dashboard", req.url));
   }
 
   return res;
@@ -82,5 +101,8 @@ export const config = {
     "/dashboard/:path*",
     "/admin/:path*",
     "/user/:path*",
+    "/pending-approval",
+    "/select-community",
+    "/",
   ],
 };
