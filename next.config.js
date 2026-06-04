@@ -6,6 +6,13 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  experimental: {
+    turbo: {
+      rules: {
+        "*.ts": ["tsc --noEmit"],
+      },
+    },
+  },
 };
 
 module.exports = nextConfig;
