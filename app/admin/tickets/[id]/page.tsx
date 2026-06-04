@@ -107,7 +107,7 @@ export default function TicketDetailsPage() {
   };
 
   // ---- ZMIANA STATUSU ----
-  const updateStatus = async (newStatus) => {
+ const updateStatus = async (newStatus: string) => {
     const { error } = await supabase
       .from("tickets")
       .update({ status: newStatus })
