@@ -4,105 +4,56 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getSupabaseBrowserClient } from "../../lib/supabaseBrowser";
 
-// ---- TYPY ----
-type Community = {
-  id: string;
-  name: string;
-  address: string;
-};
-
 export default function SelectCommunityPage() {
   const supabase = getSupabaseBrowserClient();
   const router = useRouter();
-
-  const [communities, setCommunities] = useState<Community[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [communities, setCommunities] = useState([]);
+  const [selected, setSelected] = useState("");
 
   useEffect(() => {
-    async function checkAccess() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        router.push("/login");
-        return;
-      }
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .single();
-
-      if (!profile) {
-        router.push("/login");
-        return;
-      }
-
-      const role = String(profile.role).trim().toLowerCase();
-
-      if (role === "admin") {
-        router.push("/admin");
-        return;
-      }
-
-      if (!profile.is_active) {
-        router.push("/pending-approval");
-        return;
-      }
-
-      if (profile.community_id) {
-        router.push("/dashboard");
-        return;
-      }
-
+    async function load() {
       const { data } = await supabase.from("communities").select("*");
-      setCommunities((data as Community[]) || []);
-      setLoading(false);
+      setCommunities(data || []);
     }
-
-    checkAccess();
+    load();
   }, []);
 
-  // ---- WYBÓR WSPÓLNOTY ----
-  async function selectCommunity(id: string) {
+  async function save() {
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
     await supabase
       .from("profiles")
-      .update({ community_id: id })
+      .update({ community_id: selected })
       .eq("id", user.id);
 
-    router.push("/dashboard");
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-black text-white flex items-center justify-center">
-        <p>Ładowanie...</p>
-      </div>
-    );
+    router.push("/user/dashboard");
   }
 
   return (
-    <div className="min-h-screen bg-black text-white p-6 md:p-10">
-      <h1 className="text-3xl font-bold mb-6">Wybierz wspólnotę</h1>
+    <div className="p-6 text-white max-w-md mx-auto">
+      <h1 className="text-2xl font-bold mb-4">Wybierz wspólnotę</h1>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <select
+        className="w-full p-2 bg-gray-800 border border-gray-700"
+        value={selected}
+        onChange={(e) => setSelected(e.target.value)}
+      >
+        <option value="">-- wybierz --</option>
         {communities.map((c) => (
-          <button
-            key={c.id}
-            onClick={() => selectCommunity(c.id)}
-            className="bg-gray-900 border border-gray-700 p-6 rounded-xl hover:bg-gray-800 text-left"
-          >
-            <h2 className="text-xl font-bold">{c.name}</h2>
-            <p className="text-gray-400">{c.address}</p>
-          </button>
+          <option key={c.id} value={c.id}>
+            {c.name}
+          </option>
         ))}
-      </div>
+      </select>
+
+      <button
+        onClick={save}
+        className="w-full mt-4 p-2 bg-blue-600 hover:bg-blue-700 rounded"
+      >
+        Zapisz
+      </button>
     </div>
   );
 }

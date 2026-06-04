@@ -6,8 +6,8 @@ export async function middleware(req) {
   const path = req.nextUrl.pathname;
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         get(name) {
@@ -27,69 +27,56 @@ export async function middleware(req) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // ============================================================
-  // 1. BRAK SESJI → /login
-  // ============================================================
   if (!user) {
     if (!path.startsWith("/login")) {
-      return NextResponse.redirect("/login");
+      return NextResponse.redirect(new URL("/login", req.url));
     }
     return res;
   }
 
-  // ============================================================
-  // 2. POBIERZ PROFIL
-  // ============================================================
   const { data: profile } = await supabase
     .from("profiles")
     .select("*")
     .eq("id", user.id)
     .single();
 
+  // PROFIL NIE ISTNIEJE → UZUPEŁNIENIE PROFILU
   if (!profile) {
-    return NextResponse.redirect("/login");
+    if (!path.startsWith("/complete-profile")) {
+      return NextResponse.redirect(new URL("/complete-profile", req.url));
+    }
+    return res;
   }
 
   const role = String(profile.role).trim().toLowerCase();
 
-  // ============================================================
-  // 3. ADMIN
-  // ============================================================
   if (role === "admin") {
     if (path.startsWith("/user") || path.startsWith("/dashboard")) {
-      return NextResponse.redirect("/admin");
+      return NextResponse.redirect(new URL("/admin", req.url));
     }
     return res;
   }
 
-  // ============================================================
-  // 4. USER
-  // ============================================================
-
-  // User NIE może wejść na /admin/*
   if (path.startsWith("/admin")) {
-    return NextResponse.redirect("/403");
+    return NextResponse.redirect(new URL("/403", req.url));
   }
 
-  // User NIEAKTYWNY
   if (!profile.is_active) {
     if (!path.startsWith("/pending-approval")) {
-      return NextResponse.redirect("/pending-approval");
+      return NextResponse.redirect(new URL("/pending-approval", req.url));
     }
     return res;
   }
 
-  // User AKTYWNY, ALE BEZ WSPÓLNOTY
   if (!profile.community_id) {
     if (!path.startsWith("/select-community")) {
-      return NextResponse.redirect("/select-community");
+      return NextResponse.redirect(new URL("/select-community", req.url));
     }
     return res;
   }
 
-  // /dashboard → /user/dashboard
   if (path.startsWith("/dashboard")) {
-    return NextResponse.redirect("/user/dashboard");
+    return NextResponse.redirect(new URL("/user/dashboard", req.url));
   }
 
   return res;
@@ -102,6 +89,7 @@ export const config = {
     "/user/:path*",
     "/pending-approval",
     "/select-community",
+    "/complete-profile",
     "/",
   ],
 };
