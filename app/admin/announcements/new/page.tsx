@@ -8,11 +8,11 @@ export default function NewAnnouncementPage() {
   const supabase = getSupabaseBrowserClient();
   const router = useRouter();
 
-  const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
-  const [pinned, setPinned] = useState(false);
-  const [communities, setCommunities] = useState([]);
-  const [selectedCommunities, setSelectedCommunities] = useState([]);
+  const [title, setTitle] = useState<string>("");
+  const [content, setContent] = useState<string>("");
+  const [pinned, setPinned] = useState<boolean>(false);
+  const [communities, setCommunities] = useState<any[]>([]);
+  const [selectedCommunities, setSelectedCommunities] = useState<string[]>([]);
 
   useEffect(() => {
     loadCommunities();
@@ -23,7 +23,8 @@ export default function NewAnnouncementPage() {
     setCommunities(data || []);
   }
 
-  function toggleCommunity(id) {
+  // 🔥 POPRAWIONA FUNKCJA — jedyny błąd
+  function toggleCommunity(id: string) {
     setSelectedCommunities((prev) =>
       prev.includes(id)
         ? prev.filter((c) => c !== id)
@@ -31,7 +32,7 @@ export default function NewAnnouncementPage() {
     );
   }
 
-  async function submit(e) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
 
     const { data: announcement, error } = await supabase
@@ -46,7 +47,6 @@ export default function NewAnnouncementPage() {
       return;
     }
 
-    // Zapis powiązań
     const rows = selectedCommunities.map((cid) => ({
       announcement_id: announcement.id,
       community_id: cid,

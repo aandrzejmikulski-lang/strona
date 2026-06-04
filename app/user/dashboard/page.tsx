@@ -3,13 +3,28 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getSupabaseBrowserClient } from "../../../lib/supabaseBrowser";
-import type { Profile, Community } from "../../../types/supabase-types";
+
+// 🔥 ZAMIANA: lokalne typy zamiast importu z nieistniejącego pliku
+type Profile = {
+  id: string;
+  full_name: string | null;
+  email: string;
+  phone: string | null;
+  community_id: string | null;
+};
+
+type Community = {
+  id: string;
+  name: string;
+};
 
 export default function UserDashboardPage() {
   const supabase = getSupabaseBrowserClient();
   const router = useRouter();
+
   const [profile, setProfile] = useState<Profile | null>(null);
   const [community, setCommunity] = useState<Community | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
@@ -22,95 +37,69 @@ export default function UserDashboardPage() {
         return;
       }
 
-      const { data: profileData } = (await supabase
+      const { data: profileData } = await supabase
         .from("profiles")
         .select("*")
         .eq("id", user.id)
-        .single()) as { data: Profile | null };
+        .single();
 
       if (!profileData) {
-        router.push("/complete-profile");
+        router.push("/select-community");
         return;
       }
 
-      setProfile(profileData);
+      setProfile(profileData as Profile);
 
       if (profileData.community_id) {
-        const { data: communityData } = (await supabase
+        const { data: communityData } = await supabase
           .from("communities")
           .select("*")
           .eq("id", profileData.community_id)
-          .single()) as { data: Community | null };
+          .single();
 
-        if (communityData) setCommunity(communityData);
+        setCommunity(communityData as Community);
       }
+
+      setLoading(false);
     }
 
     load();
   }, []);
 
-  async function logout() {
-    await supabase.auth.signOut();
-    router.push("/login");
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black text-white flex items-center justify-center">
+        Ładowanie...
+      </div>
+    );
   }
 
   return (
-    <div className="min-h-screen bg-black text-white p-6">
-      <div className="max-w-3xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold">Panel mieszkańca</h1>
-          <button
-            onClick={logout}
-            className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded"
-          >
-            Wyloguj
-          </button>
+    <div className="min-h-screen bg-black text-white p-6 max-w-xl mx-auto">
+      <h1 className="text-2xl font-bold mb-4">Panel użytkownika</h1>
+
+      {profile && (
+        <div className="bg-gray-900 p-4 rounded mb-4">
+          <p><strong>Imię i nazwisko:</strong> {profile.full_name || "—"}</p>
+          <p><strong>Email:</strong> {profile.email}</p>
+          <p><strong>Telefon:</strong> {profile.phone || "—"}</p>
         </div>
+      )}
 
-        {profile && (
-          <div className="mb-6 bg-gray-900 p-4 rounded border border-gray-700">
-            <h2 className="text-xl font-semibold mb-2">Twoje dane</h2>
-            <p>
-              <span className="text-gray-400">Imię i nazwisko:</span>{" "}
-              {profile.full_name || "brak"}
-            </p>
-            <p>
-              <span className="text-gray-400">Email:</span> {profile.email}
-            </p>
-            <p>
-              <span className="text-gray-400">Telefon:</span>{" "}
-              {profile.phone || "brak"}
-            </p>
-          </div>
-        )}
+      {community && (
+        <div className="bg-gray-900 p-4 rounded">
+          <p><strong>Wspólnota:</strong> {community.name}</p>
+        </div>
+      )}
 
-        {community && (
-          <div className="mb-6 bg-gray-900 p-4 rounded border border-gray-700">
-            <h2 className="text-xl font-semibold mb-2">Twoja wspólnota</h2>
-            <p>
-              <span className="text-gray-400">Nazwa:</span> {community.name}
-            </p>
-            {community.address && (
-              <p>
-                <span className="text-gray-400">Adres:</span>{" "}
-                {community.address}
-              </p>
-            )}
-          </div>
-        )}
-
-        {!community && (
-          <div className="bg-yellow-900/40 border border-yellow-700 p-4 rounded">
-            Nie masz przypisanej wspólnoty.{" "}
-            <button
-              onClick={() => router.push("/select-community")}
-              className="underline text-yellow-300"
-            >
-              Wybierz wspólnotę
-            </button>
-          </div>
-        )}
-      </div>
+      {!community && (
+        <button
+          onClick={() => router.push("/select-community")}
+          className="mt-4 w-full p-2 bg-blue-600 hover:bg-blue-700 rounded"
+        >
+          Wybierz wspólnotę
+        </button>
+      )}
     </div>
   );
 }

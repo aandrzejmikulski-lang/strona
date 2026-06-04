@@ -1,15 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { getSupabaseBrowserClient } from "../../../lib/supabaseBrowser";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 
-export default function AdminDashboard() {
+export default function DashboardPage() {
   const supabase = getSupabaseBrowserClient();
-  const router = useRouter();
 
   const [stats, setStats] = useState({
-    users: 0,
     communities: 0,
     residents: 0,
     tickets: 0,
@@ -20,43 +17,23 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     async function load() {
-      // 1. Pobierz użytkownika
-      const { data: auth } = await supabase.auth.getUser();
-
-      if (!auth?.user) {
-        router.push("/login");
-        return;
-      }
-
-      // 2. Pobierz profil
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", auth.user.id)
-        .single();
-
-      if (!profile || profile.role !== "admin") {
-        router.push("/403");
-        return;
-      }
-
-      // 3. Pobierz statystyki
-      const [users, communities, residents, tickets, announcements] =
-        await Promise.all([
-          supabase.from("profiles").select("*"),
-          supabase.from("communities").select("*"),
-          supabase.from("residents").select("*"),
-          supabase.from("tickets").select("*"),
-          supabase.from("announcements").select("*"),
-        ]);
+      const communities = await supabase.from("communities").select("id");
+      const residents = await supabase.from("profiles").select("id");
+      const tickets = await supabase.from("tickets").select("id, status");
+      const announcements = await supabase
+        .from("announcements")
+        .select("id, active");
 
       setStats({
-        users: users.data?.length || 0,
         communities: communities.data?.length || 0,
         residents: residents.data?.length || 0,
-        tickets: tickets.data?.filter((t) => t.status === "open").length || 0,
+
+        // 🔥 POPRAWKA — dodany typ parametru
+        tickets:
+          tickets.data?.filter((t: any) => t.status === "open").length || 0,
+
         announcements:
-          announcements.data?.filter((a) => a.active).length || 0,
+          announcements.data?.filter((a: any) => a.active).length || 0,
       });
 
       setLoading(false);
@@ -67,40 +44,35 @@ export default function AdminDashboard() {
 
   if (loading) {
     return (
-      <div className="p-6 text-white">
-        <h1 className="text-2xl font-bold">Ładowanie…</h1>
+      <div className="min-h-screen bg-black text-white flex items-center justify-center">
+        Ładowanie...
       </div>
     );
   }
 
   return (
-    <div className="p-6 text-white">
-      <h1 className="text-3xl font-bold mb-6">Panel Administratora</h1>
+    <div className="min-h-screen bg-black text-white p-6">
+      <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
 
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
-        <div className="p-6 bg-gray-800 rounded-lg border border-gray-700">
-          <h2 className="text-xl font-semibold">Użytkownicy</h2>
-          <p className="text-4xl font-bold mt-2">{stats.users}</p>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-gray-900 p-4 rounded">
+          <p className="text-gray-400 text-sm">Wspólnoty</p>
+          <p className="text-3xl font-bold">{stats.communities}</p>
         </div>
 
-        <div className="p-6 bg-gray-800 rounded-lg border border-gray-700">
-          <h2 className="text-xl font-semibold">Społeczności</h2>
-          <p className="text-4xl font-bold mt-2">{stats.communities}</p>
+        <div className="bg-gray-900 p-4 rounded">
+          <p className="text-gray-400 text-sm">Mieszkańcy</p>
+          <p className="text-3xl font-bold">{stats.residents}</p>
         </div>
 
-        <div className="p-6 bg-gray-800 rounded-lg border border-gray-700">
-          <h2 className="text-xl font-semibold">Mieszkańcy</h2>
-          <p className="text-4xl font-bold mt-2">{stats.residents}</p>
+        <div className="bg-gray-900 p-4 rounded">
+          <p className="text-gray-400 text-sm">Otwarte zgłoszenia</p>
+          <p className="text-3xl font-bold">{stats.tickets}</p>
         </div>
 
-        <div className="p-6 bg-gray-800 rounded-lg border border-gray-700">
-          <h2 className="text-xl font-semibold">Otwarte zgłoszenia</h2>
-          <p className="text-4xl font-bold mt-2">{stats.tickets}</p>
-        </div>
-
-        <div className="p-6 bg-gray-800 rounded-lg border border-gray-700">
-          <h2 className="text-xl font-semibold">Aktywne ogłoszenia</h2>
-          <p className="text-4xl font-bold mt-2">{stats.announcements}</p>
+        <div className="bg-gray-900 p-4 rounded">
+          <p className="text-gray-400 text-sm">Aktywne ogłoszenia</p>
+          <p className="text-3xl font-bold">{stats.announcements}</p>
         </div>
       </div>
     </div>

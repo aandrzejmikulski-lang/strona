@@ -4,13 +4,19 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getSupabaseBrowserClient } from "../../lib/supabaseBrowser";
-import type { Community } from "../../types/supabase-types";
+
+// 🔥 ZAMIANA: zamiast importu z nieistniejącego pliku — lokalny typ
+type Community = {
+  id: string;
+  name: string;
+};
 
 export default function SelectCommunityPage() {
   const supabase = getSupabaseBrowserClient();
   const router = useRouter();
+
   const [communities, setCommunities] = useState<Community[]>([]);
-  const [selected, setSelected] = useState("");
+  const [selected, setSelected] = useState<string>("");
 
   useEffect(() => {
     async function load() {

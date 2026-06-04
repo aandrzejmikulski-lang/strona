@@ -3,12 +3,17 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getSupabaseBrowserClient } from "../../lib/supabaseBrowser";
+import type { Database } from "../../types/supabase";
+
+type Profile = Database["public"]["Tables"]["profiles"]["Row"];
+type Community = Database["public"]["Tables"]["communities"]["Row"];
 
 export default function AdminPage() {
   const supabase = getSupabaseBrowserClient();
   const router = useRouter();
-  const [profiles, setProfiles] = useState([]);
-  const [communities, setCommunities] = useState([]);
+
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [communities, setCommunities] = useState<Community[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -26,7 +31,7 @@ export default function AdminPage() {
         .from("profiles")
         .select("*")
         .eq("id", user.id)
-        .single();
+        .single<Profile>();
 
       if (!me || me.role !== "admin") {
         router.push("/403");
@@ -42,18 +47,21 @@ export default function AdminPage() {
         .from("communities")
         .select("*");
 
-      setProfiles(profilesData || []);
-      setCommunities(communitiesData || []);
+      setProfiles((profilesData as Profile[]) || []);
+      setCommunities((communitiesData as Community[]) || []);
       setLoading(false);
     }
 
     load();
   }, []);
 
-  async function setActive(id, active) {
+  // 🔥 FINALNA POPRAWKA — używamy `satisfies`, jedyne co działa w Next 16
+  async function setActive(id: string, active: boolean) {
     await supabase
       .from("profiles")
-      .update({ is_active: active })
+      .update({
+        is_active: active,
+      } satisfies Database["public"]["Tables"]["profiles"]["Update"])
       .eq("id", id);
 
     setProfiles((prev) =>
@@ -61,7 +69,7 @@ export default function AdminPage() {
     );
   }
 
-  function communityName(id) {
+  function communityName(id: string | null) {
     if (!id) return "brak";
     const c = communities.find((x) => x.id === id);
     return c ? c.name : "brak";
@@ -84,23 +92,14 @@ export default function AdminPage() {
           <thead className="bg-gray-900">
             <tr>
               <th className="p-2 border-b border-gray-800 text-left">Email</th>
-              <th className="p-2 border-b border-gray-800 text-left">
-                Imię i nazwisko
-              </th>
-              <th className="p-2 border-b border-gray-800 text-left">
-                Telefon
-              </th>
-              <th className="p-2 border-b border-gray-800 text-left">
-                Wspólnota
-              </th>
-              <th className="p-2 border-b border-gray-800 text-left">
-                Status
-              </th>
-              <th className="p-2 border-b border-gray-800 text-left">
-                Akcje
-              </th>
+              <th className="p-2 border-b border-gray-800 text-left">Imię i nazwisko</th>
+              <th className="p-2 border-b border-gray-800 text-left">Telefon</th>
+              <th className="p-2 border-b border-gray-800 text-left">Wspólnota</th>
+              <th className="p-2 border-b border-gray-800 text-left">Status</th>
+              <th className="p-2 border-b border-gray-800 text-left">Akcje</th>
             </tr>
           </thead>
+
           <tbody>
             {profiles.map((p) => (
               <tr key={p.id} className="border-t border-gray-800">
@@ -135,9 +134,10 @@ export default function AdminPage() {
                 </td>
               </tr>
             ))}
+
             {profiles.length === 0 && (
               <tr>
-                <td className="p-4 text-center text-gray-400" colSpan={6}>
+                <td colSpan={6} className="p-4 text-center text-gray-400">
                   Brak użytkowników
                 </td>
               </tr>

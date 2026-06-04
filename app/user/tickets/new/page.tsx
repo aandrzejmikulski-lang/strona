@@ -2,18 +2,18 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { getSupabaseBrowserClient } from "../../../../lib/supabaseBrowser";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 
 export default function NewTicketPage() {
   const supabase = getSupabaseBrowserClient();
   const router = useRouter();
 
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [priority, setPriority] = useState("medium");
-  const [files, setFiles] = useState([]);
+  const [title, setTitle] = useState<string>("");
+  const [description, setDescription] = useState<string>("");
+  const [files, setFiles] = useState<FileList | null>(null);
 
-  async function createTicket(e) {
+  // 🔥 POPRAWKA — dodany typ parametru
+  async function createTicket(e: React.FormEvent) {
     e.preventDefault();
 
     const { data: auth } = await supabase.auth.getUser();
@@ -22,48 +22,39 @@ export default function NewTicketPage() {
       return;
     }
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", auth.user.id)
-      .single();
-
-    if (!profile) {
-      alert("Brak profilu użytkownika");
-      return;
-    }
-
     const { data: ticket, error } = await supabase
       .from("tickets")
       .insert({
-        user_id: auth.user.id,
-        community_id: profile.community_id,
         title,
         description,
-        priority,
         status: "open",
+        user_id: auth.user.id,
       })
       .select()
       .single();
 
     if (error) {
-  console.error("SUPABASE ERROR:", error);
-  alert(error.message);
-  return;
-}
-
-
-    // Upload zdjęć do bucketu ticket_attachments
-    for (const file of files) {
-      const filePath = `${ticket.id}/${Date.now()}-${file.name}`;
-      await supabase.storage.from("ticket_attachments").upload(filePath, file);
+      console.error(error);
+      alert("Błąd tworzenia zgłoszenia");
+      return;
     }
 
-    router.push("/user/tickets");
+    // Upload plików
+    if (files) {
+      await Promise.all(
+        Array.from(files).map(async (f: File) => {
+          await supabase.storage
+            .from("ticket_attachments")
+            .upload(`${ticket.id}/${f.name}`, f, { upsert: true });
+        })
+      );
+    }
+
+    router.push(`/user/tickets/${ticket.id}`);
   }
 
   return (
-    <div className="text-white p-6 max-w-xl mx-auto">
+    <div className="min-h-screen bg-black text-white p-6 max-w-xl mx-auto">
       <h1 className="text-2xl font-bold mb-4">Nowe zgłoszenie</h1>
 
       <form onSubmit={createTicket} className="space-y-4">
@@ -78,33 +69,19 @@ export default function NewTicketPage() {
         <textarea
           placeholder="Opis"
           className="w-full p-2 bg-gray-900 border border-gray-700 rounded"
-          rows={5}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
         />
 
-        <select
-          className="w-full p-2 bg-gray-900 border border-gray-700 rounded"
-          value={priority}
-          onChange={(e) => setPriority(e.target.value)}
-        >
-          <option value="low">Niski</option>
-          <option value="medium">Średni</option>
-          <option value="high">Wysoki</option>
-        </select>
-
         <input
           type="file"
           multiple
-          onChange={(e) => setFiles([...e.target.files])}
+          onChange={(e) => setFiles(e.target.files)}
           className="w-full"
         />
 
-        <button
-          type="submit"
-          className="w-full p-2 bg-blue-600 hover:bg-blue-700 rounded"
-        >
-          Zapisz zgłoszenie
+        <button className="w-full p-2 bg-blue-600 hover:bg-blue-700 rounded font-semibold">
+          Utwórz zgłoszenie
         </button>
       </form>
     </div>

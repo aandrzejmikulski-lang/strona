@@ -4,10 +4,24 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getSupabaseBrowserClient } from "../../../lib/supabaseBrowser";
 
+type Ticket = {
+  id: string;
+  title: string;
+  description: string | null;
+  status: string;
+  created_at: string;
+  profiles?: {
+    full_name: string | null;
+    email: string;
+  } | null;
+};
+
 export default function AdminTicketsListPage() {
   const supabase = getSupabaseBrowserClient();
   const router = useRouter();
-  const [tickets, setTickets] = useState([]);
+
+  // 🔥 POPRAWKA — dodany typ tablicy
+  const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -34,7 +48,7 @@ export default function AdminTicketsListPage() {
         .select("*, profiles!tickets_user_id_fkey(full_name, email)")
         .order("created_at", { ascending: false });
 
-      setTickets(ticketsData || []);
+      setTickets((ticketsData as Ticket[]) || []);
       setLoading(false);
     }
 
@@ -59,7 +73,7 @@ export default function AdminTicketsListPage() {
         )}
 
         <div className="space-y-3">
-          {tickets.map((t) => (
+          {tickets.map((t: Ticket) => (
             <div
               key={t.id}
               className="p-4 bg-gray-900 border border-gray-800 rounded cursor-pointer hover:border-gray-600"
