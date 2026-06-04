@@ -4,14 +4,47 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 
+// ---- TYPY ----
+type TicketUser = {
+  id: string;
+  full_name: string;
+  email: string;
+};
+
+type TicketCommunity = {
+  id: string;
+  name: string;
+};
+
+type Ticket = {
+  id: string;
+  title: string;
+  description: string;
+  status: string;
+  attachment: string | null;
+  created_at: string;
+  user: TicketUser | null;
+  community: TicketCommunity | null;
+};
+
+type Comment = {
+  id: string;
+  content: string;
+  created_at: string;
+  user: {
+    id: string;
+    full_name: string;
+  } | null;
+};
+
 export default function TicketDetailsPage() {
   const supabase = getSupabaseBrowserClient();
   const params = useParams();
-  const id = params.id?.toString(); // 🔥 KLUCZOWA POPRAWKA
+  const id = params.id?.toString() || "";
 
-  const [ticket, setTicket] = useState(null);
-  const [attachmentUrl, setAttachmentUrl] = useState(null);
-  const [comments, setComments] = useState([]);
+  const [ticket, setTicket] = useState<Ticket | null>(null);
+  const [attachmentUrl, setAttachmentUrl] = useState<string | null>(null);
+  const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -35,7 +68,7 @@ export default function TicketDetailsPage() {
       .single();
 
     if (!error && data) {
-      setTicket(data);
+      setTicket(data as Ticket);
 
       if (data.attachment) {
         const { data: signed } = await supabase.storage
@@ -63,7 +96,7 @@ export default function TicketDetailsPage() {
       .order("created_at", { ascending: true });
 
     if (!error) {
-      setComments(data || []);
+      setComments((data as Comment[]) || []);
     }
   };
 
@@ -91,7 +124,7 @@ export default function TicketDetailsPage() {
     }
 
     const { error } = await supabase.from("ticket_comments").insert({
-      ticket_id: id, // 🔥 teraz id jest ZAWSZE stringiem
+      ticket_id: id,
       content: newComment,
       user_id: user.id,
     });
@@ -107,7 +140,7 @@ export default function TicketDetailsPage() {
   };
 
   // ---- ZMIANA STATUSU ----
- const updateStatus = async (newStatus: string) => {
+  const updateStatus = async (newStatus: string) => {
     const { error } = await supabase
       .from("tickets")
       .update({ status: newStatus })

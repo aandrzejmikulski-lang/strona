@@ -4,11 +4,18 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getSupabaseBrowserClient } from "../../lib/supabaseBrowser";
 
+// ---- TYPY ----
+type Community = {
+  id: string;
+  name: string;
+  address: string;
+};
+
 export default function SelectCommunityPage() {
   const supabase = getSupabaseBrowserClient();
   const router = useRouter();
 
-  const [communities, setCommunities] = useState([]);
+  const [communities, setCommunities] = useState<Community[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -51,14 +58,15 @@ export default function SelectCommunityPage() {
       }
 
       const { data } = await supabase.from("communities").select("*");
-      setCommunities(data || []);
+      setCommunities((data as Community[]) || []);
       setLoading(false);
     }
 
     checkAccess();
   }, []);
 
-  async function selectCommunity(id) {
+  // ---- WYBÓR WSPÓLNOTY ----
+  async function selectCommunity(id: string) {
     const {
       data: { user },
     } = await supabase.auth.getUser();

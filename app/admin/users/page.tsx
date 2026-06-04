@@ -9,6 +9,21 @@ const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
+// ---- TYPY ----
+type Community = {
+  name: string | null;
+};
+
+type User = {
+  id: string;
+  email: string;
+  full_name: string | null;
+  role: string;
+  is_active: boolean;
+  community_id: string | null;
+  communities: Community[]; // 🔥 POPRAWKA — TABLICA, NIE OBIEKT
+};
+
 export default function UsersPage() {
   const router = useRouter();
 
@@ -19,17 +34,27 @@ export default function UsersPage() {
     pendingUsers: 0,
   });
 
-  const [users, setUsers] = useState([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
 
   async function loadStats() {
-    const [{ count: usersCount }, { count: activeCount }, { count: pendingCount }, { count: communitiesCount }] =
-      await Promise.all([
-        supabase.from("profiles").select("*", { count: "exact", head: true }),
-        supabase.from("profiles").select("*", { count: "exact", head: true }).eq("is_active", true),
-        supabase.from("profiles").select("*", { count: "exact", head: true }).eq("is_active", false),
-        supabase.from("communities").select("*", { count: "exact", head: true }),
-      ]);
+    const [
+      { count: usersCount },
+      { count: activeCount },
+      { count: pendingCount },
+      { count: communitiesCount },
+    ] = await Promise.all([
+      supabase.from("profiles").select("*", { count: "exact", head: true }),
+      supabase
+        .from("profiles")
+        .select("*", { count: "exact", head: true })
+        .eq("is_active", true),
+      supabase
+        .from("profiles")
+        .select("*", { count: "exact", head: true })
+        .eq("is_active", false),
+      supabase.from("communities").select("*", { count: "exact", head: true }),
+    ]);
 
     setStats({
       users: usersCount ?? 0,
@@ -53,7 +78,19 @@ export default function UsersPage() {
       `)
       .order("created_at", { ascending: true });
 
-    if (!error) setUsers(data);
+    if (!error && data) {
+      // 🔥 POPRAWKA — wymuszamy tablicę communities
+      const normalized = data.map((u: any) => ({
+        ...u,
+        communities: Array.isArray(u.communities)
+          ? u.communities
+          : u.communities
+          ? [u.communities]
+          : [],
+      }));
+
+      setUsers(normalized as User[]);
+    }
   }
 
   async function activateUser(id: string) {
@@ -73,10 +110,7 @@ export default function UsersPage() {
   }
 
   async function deleteUser(id: string) {
-    const { error } = await supabase
-      .from("profiles")
-      .delete()
-      .eq("id", id);
+    const { error } = await supabase.from("profiles").delete().eq("id", id);
 
     if (error) {
       console.error("❌ Błąd usuwania:", error);
@@ -133,12 +167,16 @@ export default function UsersPage() {
 
         <div className="p-4 bg-gray-800 rounded border border-gray-700">
           <div className="text-gray-400">Aktywni</div>
-          <div className="text-3xl font-bold text-green-400">{stats.activeUsers}</div>
+          <div className="text-3xl font-bold text-green-400">
+            {stats.activeUsers}
+          </div>
         </div>
 
         <div className="p-4 bg-gray-800 rounded border border-gray-700">
           <div className="text-gray-400">Oczekujący</div>
-          <div className="text-3xl font-bold text-yellow-400">{stats.pendingUsers}</div>
+          <div className="text-3xl font-bold text-yellow-400">
+            {stats.pendingUsers}
+          </div>
         </div>
 
         <div className="p-4 bg-gray-800 rounded border border-gray-700">
@@ -161,23 +199,25 @@ export default function UsersPage() {
         </thead>
 
         <tbody>
-          {users.map((u: any) => (
+          {users.map((u) => (
             <tr key={u.id} className="border border-gray-700">
-              <td className="p-2 border border-gray-700">{u.full_name ?? "—"}</td>
+              <td className="p-2 border border-gray-700">
+                {u.full_name ?? "—"}
+              </td>
               <td className="p-2 border border-gray-700">{u.email}</td>
               <td className="p-2 border border-gray-700">{u.role}</td>
               <td className="p-2 border border-gray-700">
-                {u.communities?.name ?? "—"}
+                {u.communities?.[0]?.name ?? "—"}
               </td>
               <td className="p-2 border border-gray-700">
-                {u.is_active === true ? (
+                {u.is_active ? (
                   <span className="text-green-400">Aktywny</span>
                 ) : (
                   <span className="text-yellow-400">Oczekuje</span>
                 )}
               </td>
               <td className="p-2 border border-gray-700 space-x-2">
-                {u.is_active !== true && (
+                {!u.is_active && (
                   <button
                     onClick={() => activateUser(u.id)}
                     className="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded"
