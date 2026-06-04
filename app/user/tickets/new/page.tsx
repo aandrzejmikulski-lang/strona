@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
+import { getSupabaseBrowserClient } from "../../../../lib/supabaseBrowser";
 
 export default function NewTicketPage() {
   const supabase = getSupabaseBrowserClient();
@@ -10,121 +10,101 @@ export default function NewTicketPage() {
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [priority, setPriority] = useState("medium");
+  const [files, setFiles] = useState([]);
 
-  const handleCreate = async (e: React.FormEvent) => {
+  async function createTicket(e) {
     e.preventDefault();
-    setLoading(true);
 
-    // 🔥 Pobranie użytkownika
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
+    const { data: auth } = await supabase.auth.getUser();
+    if (!auth?.user) {
       router.push("/login");
       return;
     }
 
-    // 🔥 Pobranie community_id
     const { data: profile } = await supabase
       .from("profiles")
-      .select("community_id")
-      .eq("id", user.id)
+      .select("*")
+      .eq("id", auth.user.id)
       .single();
 
-    if (!profile?.community_id) {
-      alert("Brak przypisanej wspólnoty.");
-      setLoading(false);
+    if (!profile) {
+      alert("Brak profilu użytkownika");
       return;
     }
 
-    const communityId = profile.community_id;
-
-    // 🔥 Insert zgłoszenia
-    const { data, error } = await supabase
+    const { data: ticket, error } = await supabase
       .from("tickets")
       .insert({
+        user_id: auth.user.id,
+        community_id: profile.community_id,
         title,
         description,
+        priority,
         status: "open",
-        user_id: user.id,
-        community_id: communityId,
       })
-      .select();
+      .select()
+      .single();
 
-    if (error || !data || data.length === 0) {
-      alert("Nie udało się utworzyć zgłoszenia.");
-      setLoading(false);
-      return;
+    if (error) {
+  console.error("SUPABASE ERROR:", error);
+  alert(error.message);
+  return;
+}
+
+
+    // Upload zdjęć do bucketu ticket_attachments
+    for (const file of files) {
+      const filePath = `${ticket.id}/${Date.now()}-${file.name}`;
+      await supabase.storage.from("ticket_attachments").upload(filePath, file);
     }
 
-    const newTicketId = data[0].id;
-
-    // 🔥 Upload załącznika
-    if (file) {
-      const ext = file.name.split(".").pop();
-      const fileName = `${Date.now()}.${ext}`;
-      const filePath = `${newTicketId}/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("ticket_attachments")
-        .upload(filePath, file, {
-          upsert: true,
-        });
-
-      if (uploadError) {
-        console.error(uploadError);
-        alert("Zgłoszenie utworzone, ale załącznik się nie zapisał.");
-      }
-    }
-
-    router.push(`/user/tickets/${newTicketId}`);
-  };
+    router.push("/user/tickets");
+  }
 
   return (
-    <div className="min-h-screen bg-black text-white p-6 md:p-10">
-      <button
-        onClick={() => router.push("/user/tickets")}
-        className="mb-6 px-3 py-1 rounded bg-gray-800 hover:bg-gray-700 text-sm"
-      >
-        ← Powrót
-      </button>
+    <div className="text-white p-6 max-w-xl mx-auto">
+      <h1 className="text-2xl font-bold mb-4">Nowe zgłoszenie</h1>
 
-      <h1 className="text-2xl font-bold mb-6">Nowe zgłoszenie</h1>
-
-      <form onSubmit={handleCreate} className="space-y-4 max-w-lg">
+      <form onSubmit={createTicket} className="space-y-4">
         <input
           type="text"
           placeholder="Tytuł"
-          className="w-full p-3 bg-gray-800 border border-gray-700 rounded"
+          className="w-full p-2 bg-gray-900 border border-gray-700 rounded"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          required
         />
 
         <textarea
           placeholder="Opis"
-          className="w-full p-3 bg-gray-800 border border-gray-700 rounded h-32"
+          className="w-full p-2 bg-gray-900 border border-gray-700 rounded"
+          rows={5}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          required
         />
 
-        {/* 🔥 Załącznik */}
+        <select
+          className="w-full p-2 bg-gray-900 border border-gray-700 rounded"
+          value={priority}
+          onChange={(e) => setPriority(e.target.value)}
+        >
+          <option value="low">Niski</option>
+          <option value="medium">Średni</option>
+          <option value="high">Wysoki</option>
+        </select>
+
         <input
           type="file"
-          className="w-full p-3 bg-gray-800 border border-gray-700 rounded"
-          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+          multiple
+          onChange={(e) => setFiles([...e.target.files])}
+          className="w-full"
         />
 
         <button
           type="submit"
-          disabled={loading}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded"
+          className="w-full p-2 bg-blue-600 hover:bg-blue-700 rounded"
         >
-          {loading ? "Tworzenie..." : "Utwórz zgłoszenie"}
+          Zapisz zgłoszenie
         </button>
       </form>
     </div>

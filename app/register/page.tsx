@@ -1,86 +1,92 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { useRouter } from "next/navigation";
+import { getSupabaseBrowserClient } from "../../lib/supabaseBrowser";
 
 export default function RegisterPage() {
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [password, setPassword] = useState("");
+  const supabase = getSupabaseBrowserClient();
+  const router = useRouter();
 
-  function validatePassword(pwd: string) {
-    if (pwd.length < 8) return "Hasło musi mieć minimum 8 znaków";
-    if (!/[A-Z]/.test(pwd)) return "Hasło musi zawierać wielką literę";
-    if (!/[a-z]/.test(pwd)) return "Hasło musi zawierać małą literę";
-    if (!/[0-9]/.test(pwd)) return "Hasło musi zawierać cyfrę";
-    return null;
-  }
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
   async function register(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!fullName.trim()) return alert("Podaj imię i nazwisko");
-    if (!phone.trim()) return alert("Podaj numer telefonu");
-
-    const pwdError = validatePassword(password);
-    if (pwdError) return alert(pwdError);
-
-    const { error } = await supabase.auth.signUp({
+    const { data: auth, error: authError } = await supabase.auth.signUp({
       email,
       password,
     });
 
-    if (error) {
-      alert("Błąd rejestracji: " + error.message);
+    if (authError) {
+      alert(authError.message);
       return;
     }
 
-    // ZAPAMIĘTAJ DANE DO UZUPEŁNIENIA PROFILU
-    localStorage.setItem("pending_full_name", fullName);
-    localStorage.setItem("pending_phone", phone);
+    const user = auth.user;
+    if (!user) {
+      alert("Błąd: brak użytkownika po rejestracji");
+      return;
+    }
 
-    alert("Rejestracja udana! Sprawdź maila i potwierdź adres email.");
+    // 🔥 KLUCZ: zamiast insert → UPSERT po id
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .upsert(
+        {
+          id: user.id,
+          full_name: fullName,
+          phone: phone,
+          // role pomijamy, bo masz default 'user' w bazie
+        },
+        { onConflict: "id" }
+      );
+
+    if (profileError) {
+      console.error("PROFILE ERROR:", profileError);
+      alert("Błąd zapisu profilu");
+      return;
+    }
+
+    router.push("/login");
   }
 
   return (
-    <div className="p-6 max-w-md mx-auto">
+    <div className="text-white p-6 max-w-xl mx-auto">
       <h1 className="text-2xl font-bold mb-4">Rejestracja</h1>
 
       <form onSubmit={register} className="space-y-4">
         <input
           type="text"
           placeholder="Imię i nazwisko"
-          className="w-full p-2 bg-gray-800 border border-gray-700"
+          className="w-full p-2 bg-gray-900 border border-gray-700 rounded"
           value={fullName}
           onChange={(e) => setFullName(e.target.value)}
         />
 
         <input
-          type="email"
-          placeholder="Email"
-          className="w-full p-2 bg-gray-800 border border-gray-700"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-
-        <input
-          type="tel"
+          type="text"
           placeholder="Telefon"
-          className="w-full p-2 bg-gray-800 border border-gray-700"
+          className="w-full p-2 bg-gray-900 border border-gray-700 rounded"
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
         />
 
         <input
+          type="email"
+          placeholder="Email"
+          className="w-full p-2 bg-gray-900 border border-gray-700 rounded"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+
+        <input
           type="password"
           placeholder="Hasło"
-          className="w-full p-2 bg-gray-800 border border-gray-700"
+          className="w-full p-2 bg-gray-900 border border-gray-700 rounded"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />

@@ -1,22 +1,24 @@
+// /middleware.ts
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import type { Profile } from "./types/supabase-types";
 
-export async function middleware(req) {
+export async function middleware(req: any) {
   const res = NextResponse.next();
   const path = req.nextUrl.pathname;
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name) {
+        get(name: string) {
           return req.cookies.get(name)?.value;
         },
-        set(name, value, options) {
+        set(name: string, value: string, options: any) {
           res.cookies.set(name, value, options);
         },
-        remove(name, options) {
+        remove(name: string, options: any) {
           res.cookies.delete(name, options);
         },
       },
@@ -34,13 +36,12 @@ export async function middleware(req) {
     return res;
   }
 
-  const { data: profile } = await supabase
+  const { data: profile } = (await supabase
     .from("profiles")
     .select("*")
     .eq("id", user.id)
-    .single();
+    .single()) as { data: Profile | null };
 
-  // PROFIL NIE ISTNIEJE → UZUPEŁNIENIE PROFILU
   if (!profile) {
     if (!path.startsWith("/complete-profile")) {
       return NextResponse.redirect(new URL("/complete-profile", req.url));

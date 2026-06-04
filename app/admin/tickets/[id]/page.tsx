@@ -1,260 +1,167 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
-import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
+import { useRouter, useParams } from "next/navigation";
+import { getSupabaseBrowserClient } from "../../../../lib/supabaseBrowser";
 
-// ---- TYPY ----
-type TicketUser = {
-  id: string;
-  full_name: string;
-  email: string;
-};
-
-type TicketCommunity = {
-  id: string;
-  name: string;
-};
-
-type Ticket = {
-  id: string;
-  title: string;
-  description: string;
-  status: string;
-  attachment: string | null;
-  created_at: string;
-  user: TicketUser | null;
-  community: TicketCommunity | null;
-};
-
-type Comment = {
-  id: string;
-  content: string;
-  created_at: string;
-  user: {
-    id: string;
-    full_name: string;
-  } | null;
-};
-
-export default function TicketDetailsPage() {
+export default function AdminTicketDetailsPage() {
   const supabase = getSupabaseBrowserClient();
+  const router = useRouter();
   const params = useParams();
-  const id = params.id?.toString() || "";
 
-  const [ticket, setTicket] = useState<Ticket | null>(null);
-  const [attachmentUrl, setAttachmentUrl] = useState<string | null>(null);
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [newComment, setNewComment] = useState("");
+  const [ticket, setTicket] = useState(null);
+  const [images, setImages] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  // ---- ŁADOWANIE TICKETA ----
-  const loadTicket = async () => {
-    const { data, error } = await supabase
-      .from("tickets")
-      .select(
-        `
-        id,
-        title,
-        description,
-        status,
-        attachment,
-        created_at,
-        user:profiles(id, full_name, email),
-        community:communities(id, name)
-      `
-      )
-      .eq("id", id)
-      .single();
-
-    if (!error && data) {
-      setTicket(data as Ticket);
-
-      if (data.attachment) {
-        const { data: signed } = await supabase.storage
-          .from("ticket_attachments")
-          .createSignedUrl(data.attachment, 3600);
-
-        setAttachmentUrl(signed?.signedUrl || null);
-      }
-    }
-  };
-
-  // ---- ŁADOWANIE KOMENTARZY ----
-  const loadComments = async () => {
-    const { data, error } = await supabase
-      .from("ticket_comments")
-      .select(
-        `
-        id,
-        content,
-        created_at,
-        user:profiles(id, full_name)
-      `
-      )
-      .eq("ticket_id", id)
-      .order("created_at", { ascending: true });
-
-    if (!error) {
-      setComments((data as Comment[]) || []);
-    }
-  };
+  const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
-    const init = async () => {
-      await loadTicket();
-      await loadComments();
+    async function load() {
+      const { data: auth } = await supabase.auth.getUser();
+      if (!auth?.user) {
+        router.push("/login");
+        return;
+      }
+
+      const { data: me } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", auth.user.id)
+        .single();
+
+      if (!me || me.role !== "admin") {
+        router.push("/403");
+        return;
+      }
+
+      const id = params.id;
+
+      const { data: ticketData } = await supabase
+        .from("tickets")
+        .select("*, profiles!tickets_user_id_fkey(full_name, email)")
+        .eq("id", id)
+        .single();
+
+      setTicket(ticketData);
+
+      const { data: files } = await supabase.storage
+        .from("ticket_attachments")
+        .list(`${id}/`);
+
+      if (files) {
+        const urls = await Promise.all(
+          files.map(async (f) => {
+            const { data } = await supabase.storage
+              .from("ticket_attachments")
+              .getPublicUrl(`${id}/${f.name}`);
+            return data.publicUrl;
+          })
+        );
+        setImages(urls);
+      }
+
       setLoading(false);
-    };
-    init();
-  }, [id]);
-
-  // ---- DODAWANIE KOMENTARZA ----
-  const addComment = async () => {
-    if (!newComment.trim()) return;
-
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError || !user) {
-      alert("Brak użytkownika — nie można dodać komentarza.");
-      return;
     }
 
-    const { error } = await supabase.from("ticket_comments").insert({
-      ticket_id: id,
-      content: newComment,
-      user_id: user.id,
-    });
+    load();
+  }, []);
 
-    if (error) {
-      console.error("Insert error:", error);
-      alert("Nie udało się dodać komentarza.");
-      return;
-    }
+  async function changeStatus(newStatus) {
+    if (!ticket) return;
+    setUpdating(true);
 
-    setNewComment("");
-    await loadComments();
-  };
-
-  // ---- ZMIANA STATUSU ----
-  const updateStatus = async (newStatus: string) => {
-    const { error } = await supabase
+    await supabase
       .from("tickets")
       .update({ status: newStatus })
-      .eq("id", id);
+      .eq("id", ticket.id);
 
-    if (!error) {
-      await loadTicket();
-    } else {
-      console.error(error);
-      alert("Nie udało się zmienić statusu.");
-    }
-  };
+    setTicket({ ...ticket, status: newStatus });
+    setUpdating(false);
+  }
 
   if (loading || !ticket) {
-    return <div className="text-white p-8">Ładowanie...</div>;
+    return (
+      <div className="min-h-screen bg-black text-white flex items-center justify-center">
+        Ładowanie...
+      </div>
+    );
   }
 
   return (
-    <div className="min-h-screen bg-black text-white p-8 space-y-8">
-
-      {/* NAGŁÓWEK */}
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">{ticket.title}</h1>
-
-        <select
-          value={ticket.status}
-          onChange={(e) => updateStatus(e.target.value)}
-          className="bg-gray-900 border border-gray-700 rounded px-3 py-2"
+    <div className="min-h-screen bg-black text-white p-6">
+      <div className="max-w-4xl mx-auto">
+        <button
+          onClick={() => router.push("/admin/tickets")}
+          className="mb-4 text-sm text-gray-400 hover:text-gray-200"
         >
-          <option value="open">Nowe</option>
-          <option value="in_progress">W trakcie</option>
-          <option value="closed">Zamknięte</option>
-        </select>
-      </div>
+          ← Wróć do listy
+        </button>
 
-      {/* META */}
-      <div className="bg-gray-900 p-6 rounded-xl border border-gray-800 space-y-2">
-        <div>
-          <span className="text-gray-400">Użytkownik:</span>{" "}
-          {ticket.user?.full_name} ({ticket.user?.email})
-        </div>
-
-        <div>
-          <span className="text-gray-400">Wspólnota:</span>{" "}
-          {ticket.community?.name}
-        </div>
-
-        <div>
-          <span className="text-gray-400">Data zgłoszenia:</span>{" "}
-          {new Date(ticket.created_at).toLocaleString("pl-PL")}
-        </div>
-      </div>
-
-      {/* TREŚĆ ZGŁOSZENIA */}
-      <div className="bg-gray-900 p-6 rounded-xl border border-gray-800">
-        <h2 className="text-xl font-bold mb-3">Treść zgłoszenia</h2>
-        <p className="text-gray-200 whitespace-pre-line">{ticket.description}</p>
-      </div>
-
-      {/* ZAŁĄCZNIK */}
-      <div className="bg-gray-900 p-6 rounded-xl border border-gray-800">
-        <h2 className="text-xl font-bold mb-3">Załącznik</h2>
-
-        {attachmentUrl ? (
-          <a
-            href={attachmentUrl}
-            target="_blank"
-            className="text-blue-400 hover:underline"
-          >
-            Otwórz załącznik
-          </a>
-        ) : (
-          <span className="text-gray-500">Brak załącznika</span>
-        )}
-      </div>
-
-      {/* KOMENTARZE */}
-      <div className="bg-gray-900 p-6 rounded-xl border border-gray-800 space-y-4">
-        <h2 className="text-xl font-bold">Komentarze</h2>
-
-        <div className="space-y-4">
-          {comments.map((c) => (
-            <div
-              key={c.id}
-              className="bg-black p-4 rounded border border-gray-800"
-            >
-              <div className="text-sm text-gray-400">
-                {c.user?.full_name} •{" "}
-                {new Date(c.created_at).toLocaleString("pl-PL")}
-              </div>
-              <div className="mt-2">{c.content}</div>
+        <div className="flex justify-between items-start mb-4">
+          <div>
+            <h1 className="text-2xl font-bold mb-2">{ticket.title}</h1>
+            <p className="text-gray-400 mb-2">
+              Zgłaszający:{" "}
+              {ticket.profiles
+                ? ticket.profiles.full_name || ticket.profiles.email
+                : "nieznany użytkownik"}
+            </p>
+            <p className="text-gray-500 text-sm">
+              {new Date(ticket.created_at).toLocaleString()}
+            </p>
+          </div>
+          <div className="text-right">
+            <div className="mb-2">
+              <span className="px-2 py-1 rounded bg-gray-800">
+                {ticket.status}
+              </span>
             </div>
-          ))}
-          {comments.length === 0 && (
-            <div className="text-gray-500 text-sm">
-              Brak komentarzy do tego zgłoszenia.
+            <div className="space-x-2">
+              <button
+                disabled={updating}
+                onClick={() => changeStatus("open")}
+                className="px-2 py-1 text-xs bg-gray-800 hover:bg-gray-700 rounded"
+              >
+                Otwórz
+              </button>
+              <button
+                disabled={updating}
+                onClick={() => changeStatus("in_progress")}
+                className="px-2 py-1 text-xs bg-blue-700 hover:bg-blue-800 rounded"
+              >
+                W realizacji
+              </button>
+              <button
+                disabled={updating}
+                onClick={() => changeStatus("closed")}
+                className="px-2 py-1 text-xs bg-green-700 hover:bg-green-800 rounded"
+              >
+                Zamknij
+              </button>
             </div>
+          </div>
+        </div>
+
+        <div className="mb-6">
+          <h2 className="text-lg font-semibold mb-2">Opis zgłoszenia</h2>
+          <p className="text-gray-200 whitespace-pre-line">
+            {ticket.description}
+          </p>
+        </div>
+
+        <div>
+          <h2 className="text-lg font-semibold mb-2">Zdjęcia</h2>
+          {images.length === 0 && (
+            <div className="text-gray-400">Brak zdjęć</div>
           )}
-        </div>
-
-        {/* DODAJ KOMENTARZ */}
-        <div className="flex gap-3">
-          <input
-            value={newComment}
-            onChange={(e) => setNewComment(e.target.value)}
-            placeholder="Dodaj komentarz..."
-            className="flex-1 bg-black border border-gray-700 rounded px-3 py-2"
-          />
-          <button
-            onClick={addComment}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded"
-          >
-            Wyślij
-          </button>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            {images.map((url, i) => (
+              <img
+                key={i}
+                src={url}
+                className="w-full h-auto rounded border border-gray-700"
+              />
+            ))}
+          </div>
         </div>
       </div>
     </div>

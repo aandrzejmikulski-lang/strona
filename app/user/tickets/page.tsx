@@ -1,193 +1,73 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
+import { getSupabaseBrowserClient } from "../../../lib/supabaseBrowser";
 
-type Ticket = {
-  id: string;
-  title: string;
-  description: string;
-  status: string;
-  attachment: string | null;
-  created_at: string;
-  community?: {
-    id: string;
-    name: string;
-  };
-};
-
-// 🔥 POLSKIE STATUSY
-const STATUS_LABELS: Record<string, string> = {
-  open: "Otwarte",
-  in_progress: "W trakcie",
-  closed: "Zamknięte",
-};
-
-export default function UserTicketsPage() {
+export default function TicketsListPage() {
   const supabase = getSupabaseBrowserClient();
   const router = useRouter();
-
-  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [attachmentUrls, setAttachmentUrls] = useState<Record<string, string>>(
-    {}
-  );
-
-  const fetchTickets = useCallback(async () => {
-    setLoading(true);
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      router.push("/login");
-      return;
-    }
-
-    const { data, error } = await supabase
-      .from("tickets")
-      .select(`
-        id,
-        title,
-        description,
-        status,
-        attachment,
-        created_at,
-        community:communities (id, name)
-      `)
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false });
-
-    if (!error) setTickets(data || []);
-    setLoading(false);
-  }, [supabase, router]);
 
   useEffect(() => {
-    fetchTickets();
-  }, [fetchTickets]);
+    async function load() {
+      const { data: auth } = await supabase.auth.getUser();
+      if (!auth?.user) {
+        router.push("/login");
+        return;
+      }
 
-  const loadAttachmentUrl = async (ticket: Ticket) => {
-    if (!ticket.attachment) return;
+      const { data: ticketsData } = await supabase
+        .from("tickets")
+        .select("*")
+        .eq("user_id", auth.user.id)
+        .order("created_at", { ascending: false });
 
-    const { data } = await supabase.storage
-      .from("ticket_attachments")
-      .createSignedUrl(ticket.attachment, 3600);
-
-    if (data?.signedUrl) {
-      setAttachmentUrls((prev) => ({
-        ...prev,
-        [ticket.id]: data.signedUrl,
-      }));
+      setTickets(ticketsData || []);
+      setLoading(false);
     }
-  };
 
-  useEffect(() => {
-    tickets.forEach((t) => loadAttachmentUrl(t));
-  }, [tickets]);
+    load();
+  }, []);
 
-  const handleOpenTicket = (ticketId: string) => {
-    router.push(`/user/tickets/${ticketId}`);
-  };
+  if (loading) {
+    return <div className="text-white p-6">Ładowanie...</div>;
+  }
 
   return (
-    <div className="min-h-screen bg-black text-white p-6 md:p-10">
-      <div className="flex items-center justify-between mb-6">
+    <div className="text-white p-6 max-w-3xl mx-auto">
+      <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Twoje zgłoszenia</h1>
-
-        <div className="flex gap-2">
-          <button
-            onClick={() => router.push("/user/tickets/new")}
-            className="px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 text-sm font-semibold"
-          >
-            + Dodaj zgłoszenie
-          </button>
-
-          <button
-            onClick={fetchTickets}
-            className="px-3 py-1 rounded bg-gray-800 hover:bg-gray-700 text-sm"
-          >
-            Odśwież
-          </button>
-        </div>
+        <button
+          onClick={() => router.push("/user/tickets/new")}
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded"
+        >
+          + Nowe zgłoszenie
+        </button>
       </div>
 
-      {loading ? (
-        <div>Ładowanie zgłoszeń...</div>
-      ) : tickets.length === 0 ? (
-        <div>Brak zgłoszeń.</div>
-      ) : (
-        <div className="overflow-x-auto border border-gray-800 rounded-lg">
-          <table className="min-w-full text-sm">
-            <thead className="bg-gray-900">
-              <tr>
-                <th className="px-4 py-2 text-left">Tytuł</th>
-                <th className="px-4 py-2 text-left">Wspólnota</th>
-                <th className="px-4 py-2 text-left">Status</th>
-                <th className="px-4 py-2 text-left">Załącznik</th>
-                <th className="px-4 py-2 text-left">Data</th>
-                <th className="px-4 py-2 text-left">Akcja</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tickets.map((ticket) => {
-                const attachmentUrl = attachmentUrls[ticket.id];
-
-                return (
-                  <tr
-                    key={ticket.id}
-                    className="border-t border-gray-800 hover:bg-gray-900/40"
-                  >
-                    <td className="px-4 py-2 align-top">
-                      <div className="font-semibold">{ticket.title}</div>
-                      <div className="text-xs text-gray-400 line-clamp-2">
-                        {ticket.description}
-                      </div>
-                    </td>
-
-                    <td className="px-4 py-2 align-top">
-                      {ticket.community?.name || "—"}
-                    </td>
-
-                    <td className="px-4 py-2 align-top">
-                      {STATUS_LABELS[ticket.status] || ticket.status}
-                    </td>
-
-                    <td className="px-4 py-2 align-top">
-                      {attachmentUrl ? (
-                        <a
-                          href={attachmentUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-blue-400 hover:underline text-xs"
-                        >
-                          Otwórz załącznik
-                        </a>
-                      ) : (
-                        <span className="text-xs text-gray-500">Brak</span>
-                      )}
-                    </td>
-
-                    <td className="px-4 py-2 align-top text-xs text-gray-400">
-                      {new Date(ticket.created_at).toLocaleString("pl-PL")}
-                    </td>
-
-                    <td className="px-4 py-2 align-top">
-                      <button
-                        onClick={() => handleOpenTicket(ticket.id)}
-                        className="px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 text-xs font-semibold"
-                      >
-                        Open
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+      {tickets.length === 0 && (
+        <div className="text-gray-400">Nie masz jeszcze żadnych zgłoszeń.</div>
       )}
+
+      <div className="space-y-4">
+        {tickets.map((t) => (
+          <div
+            key={t.id}
+            className="p-4 bg-gray-900 border border-gray-700 rounded cursor-pointer"
+            onClick={() => router.push(`/user/tickets/${t.id}`)}
+          >
+            <div className="flex justify-between">
+              <h2 className="text-lg font-semibold">{t.title}</h2>
+              <span className="text-sm text-gray-400">{t.status}</span>
+            </div>
+            <p className="text-gray-400 text-sm mt-1">
+              {new Date(t.created_at).toLocaleString()}
+            </p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

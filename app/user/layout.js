@@ -6,48 +6,35 @@ import { usePathname } from "next/navigation";
 export default function UserLayout({ children }) {
   const pathname = usePathname();
 
-  const nav = [
-    { name: "Dashboard", href: "/user/dashboard" },
-    { name: "Zgłoszenia", href: "/user/tickets" },
-  ];
+  const linkClass = (path) =>
+    `block px-4 py-2 rounded ${
+      pathname === path
+        ? "bg-blue-600 text-white"
+        : "text-gray-300 hover:bg-gray-800"
+    }`;
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
-      {/* SIDEBAR */}
-      <aside className="w-64 bg-[#0F172A] text-white p-6 flex flex-col">
-        <h2 className="text-2xl font-bold mb-10 tracking-tight">Panel</h2>
+    <div className="flex min-h-screen text-white">
+      <aside className="w-64 bg-gray-900 p-4 space-y-2 border-r border-gray-700">
+        <h2 className="text-xl font-bold mb-4">Panel mieszkańca</h2>
 
-        <nav className="flex-1 space-y-2">
-          {nav.map((item) => {
-            const active =
-              pathname === item.href || pathname.startsWith(item.href + "/");
+        <Link href="/user/dashboard" className={linkClass("/user/dashboard")}>
+          Dashboard
+        </Link>
 
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`block px-3 py-2 rounded-md transition-all duration-150 ${
-                  active
-                    ? "bg-[#1E293B] text-white shadow-sm"
-                    : "text-gray-300 hover:bg-[#1E293B]/70 hover:text-white"
-                }`}
-              >
-                {item.name}
-              </Link>
-            );
-          })}
-        </nav>
+        <Link href="/user/tickets" className={linkClass("/user/tickets")}>
+          Zgłoszenia
+        </Link>
 
         <Link
-          href="/logout"
-          className="mt-10 block px-3 py-2 rounded-md bg-red-600 text-center hover:bg-red-700 transition"
+          href="/user/announcements"
+          className={linkClass("/user/announcements")}
         >
-          Wyloguj
+          Ogłoszenia
         </Link>
       </aside>
 
-      {/* CONTENT */}
-      <main className="flex-1 p-10">{children}</main>
+      <main className="flex-1 p-6">{children}</main>
     </div>
   );
 }

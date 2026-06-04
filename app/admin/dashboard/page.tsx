@@ -1,24 +1,13 @@
 "use client";
 
-
-
 import { useEffect, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
-
-type Ticket = {
-  status: string;
-};
-
-type Announcement = {
-  active: boolean;
-};
+import { useRouter } from "next/navigation";
+import { getSupabaseBrowserClient } from "../../../lib/supabaseBrowser";
 
 export default function AdminDashboard() {
+  const supabase = getSupabaseBrowserClient();
+  const router = useRouter();
+
   const [stats, setStats] = useState({
     users: 0,
     communities: 0,
@@ -30,43 +19,62 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function loadStats() {
-      const users = await supabase.from("profiles").select("*");
-      const communities = await supabase.from("communities").select("*");
-      const residents = await supabase.from("residents").select("*");
-      const tickets = await supabase.from("tickets").select("*");
-      const announcements = await supabase.from("announcements").select("*");
+    async function load() {
+      // 1. Pobierz użytkownika
+      const { data: auth } = await supabase.auth.getUser();
+
+      if (!auth?.user) {
+        router.push("/login");
+        return;
+      }
+
+      // 2. Pobierz profil
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", auth.user.id)
+        .single();
+
+      if (!profile || profile.role !== "admin") {
+        router.push("/403");
+        return;
+      }
+
+      // 3. Pobierz statystyki
+      const [users, communities, residents, tickets, announcements] =
+        await Promise.all([
+          supabase.from("profiles").select("*"),
+          supabase.from("communities").select("*"),
+          supabase.from("residents").select("*"),
+          supabase.from("tickets").select("*"),
+          supabase.from("announcements").select("*"),
+        ]);
 
       setStats({
         users: users.data?.length || 0,
         communities: communities.data?.length || 0,
         residents: residents.data?.length || 0,
-        tickets:
-          tickets.data?.filter(
-            (t: Ticket) => t.status === "open"
-          ).length || 0,
+        tickets: tickets.data?.filter((t) => t.status === "open").length || 0,
         announcements:
-          announcements.data?.filter(
-            (a: Announcement) => a.active
-          ).length || 0,
+          announcements.data?.filter((a) => a.active).length || 0,
       });
 
       setLoading(false);
     }
 
-    loadStats();
+    load();
   }, []);
 
   if (loading) {
     return (
-      <div className="p-6">
+      <div className="p-6 text-white">
         <h1 className="text-2xl font-bold">Ładowanie…</h1>
       </div>
     );
   }
 
   return (
-    <div className="p-6">
+    <div className="p-6 text-white">
       <h1 className="text-3xl font-bold mb-6">Panel Administratora</h1>
 
       <div className="grid grid-cols-1 md:grid-cols-5 gap-6">

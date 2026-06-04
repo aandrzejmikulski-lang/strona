@@ -1,127 +1,81 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { createBrowserClient } from "@supabase/ssr";
-import Link from "next/link";
+import { useRouter, useParams } from "next/navigation";
+import { getSupabaseBrowserClient } from "../../../../lib/supabaseBrowser";
 
-export default function TicketDetailsPage({
-  params,
-}: {
-  params: { id: string };
-}) {
+export default function TicketDetailsPage() {
+  const supabase = getSupabaseBrowserClient();
   const router = useRouter();
-  const ticketId = params.id;
+  const params = useParams();
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      db: { schema: "public" },
-    }
-  );
-
-  const [ticket, setTicket] = useState<any>(null);
-  const [files, setFiles] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [ticket, setTicket] = useState(null);
+  const [images, setImages] = useState([]);
 
   useEffect(() => {
+    async function load() {
+      const id = params.id;
+
+      const { data: ticketData } = await supabase
+        .from("tickets")
+        .select("*")
+        .eq("id", id)
+        .single();
+
+      setTicket(ticketData);
+
+      // Pobieramy zdjęcia z bucketu ticket_attachments
+      const { data: files } = await supabase.storage
+        .from("ticket_attachments")
+        .list(`${id}/`);
+
+      if (files) {
+        const urls = await Promise.all(
+          files.map(async (f) => {
+            const { data } = await supabase.storage
+              .from("ticket_attachments")
+              .getPublicUrl(`${id}/${f.name}`);
+            return data.publicUrl;
+          })
+        );
+        setImages(urls);
+      }
+    }
+
     load();
   }, []);
 
-  const load = async () => {
-    await supabase.auth.getSession();
-
-    const { data: ticketData, error: ticketError } = await supabase
-      .from("tickets")
-      .select("*")
-      .eq("id", ticketId)
-      .single();
-
-    console.log("TICKET:", ticketData, ticketError);
-
-    if (!ticketData) {
-      setLoading(false);
-      return;
-    }
-
-    setTicket(ticketData);
-
-    const { data: fileList } = await supabase.storage
-      .from("ticket_attachments")
-      .list(ticketId);
-
-    if (fileList) {
-      const urls = fileList.map((file) => {
-        const { data: urlData } = supabase.storage
-          .from("ticket_attachments")
-          .getPublicUrl(`${ticketId}/${file.name}`);
-
-        return {
-          name: file.name,
-          url: urlData.publicUrl,
-        };
-      });
-
-      setFiles(urls);
-    }
-
-    setLoading(false);
-  };
-
-  if (loading) {
-    return (
-      <div className="p-6 text-white">
-        <p>Ładowanie zgłoszenia...</p>
-      </div>
-    );
-  }
-
   if (!ticket) {
-    return (
-      <div className="p-6 text-white">
-        <p>Nie znaleziono zgłoszenia.</p>
-      </div>
-    );
+    return <div className="text-white p-6">Ładowanie...</div>;
   }
 
   return (
-    <div className="min-h-screen bg-black text-white p-6 md:p-10">
-      <Link
-        href="/user/tickets"
-        className="mb-6 inline-block px-3 py-1 rounded bg-gray-800 hover:bg-gray-700 text-sm"
-      >
-        ← Powrót
-      </Link>
+    <div className="text-white p-6 max-w-3xl mx-auto">
+      <h1 className="text-2xl font-bold mb-2">{ticket.title}</h1>
+      <p className="text-gray-400 mb-4">{ticket.description}</p>
 
-      <h1 className="text-3xl font-bold mb-4">{ticket.title}</h1>
-
-      <p className="opacity-80 mb-6">{ticket.description}</p>
-
-      <div className="mb-10">
-        <h2 className="text-xl font-semibold mb-3">Załączniki</h2>
-
-        {files.length === 0 && (
-          <p className="opacity-60">Brak załączników.</p>
-        )}
-
-        <ul className="space-y-2">
-          {files.map((file) => (
-            <li key={file.name}>
-              <a
-                href={file.url}
-                target="_blank"
-                className="text-blue-400 underline hover:text-blue-300"
-              >
-                {file.name}
-              </a>
-            </li>
-          ))}
-        </ul>
+      <div className="mb-4">
+        <span className="font-semibold">Status:</span> {ticket.status}
       </div>
 
-      <div className="opacity-60 text-sm">
-        Utworzone: {new Date(ticket.created_at).toLocaleString()}
+      <div className="mb-4">
+        <span className="font-semibold">Priorytet:</span> {ticket.priority}
+      </div>
+
+      <h2 className="text-xl font-semibold mt-6 mb-2">Zdjęcia</h2>
+
+      {images.length === 0 && (
+        <div className="text-gray-400">Brak zdjęć</div>
+      )}
+
+      <div className="grid grid-cols-2 gap-4">
+        {images.map((url, i) => (
+          <img
+            key={i}
+            src={url}
+            className="w-full h-auto rounded border border-gray-700"
+          />
+        ))}
       </div>
     </div>
   );

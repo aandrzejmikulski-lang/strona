@@ -1,3 +1,4 @@
+// /app/complete-profile/page.tsx
 "use client";
 
 import { useEffect } from "react";
@@ -42,8 +43,8 @@ export default function CompleteProfilePage() {
   }, []);
 
   return (
-    <div className="text-white p-6 text-center">
-      Tworzenie profilu...
+    <div className="min-h-screen flex items-center justify-center bg-black text-white">
+      <div>Tworzenie profilu...</div>
     </div>
   );
 }

@@ -1,9 +1,10 @@
+// /app/403/page.tsx
 export default function ForbiddenPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-black text-white">
+    <div className="min-h-screen bg-black text-white flex items-center justify-center">
       <div className="text-center">
-        <h1 className="text-5xl font-bold mb-4">403</h1>
-        <p className="text-lg">Brak uprawnień do tej strony.</p>
+        <h1 className="text-3xl font-bold mb-2">403</h1>
+        <p>Brak uprawnień do tej strony.</p>
       </div>
     </div>
   );
